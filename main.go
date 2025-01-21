@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	dayPackage "strelox.com/ac2024/day4"
+	dayPackage "strelox.com/ac2024/day5"
 )
 
 type dayExecuter interface {
@@ -20,7 +20,7 @@ func (options *dayPackageOptions) Execute() {
 }
 
 func main() {
-	dayOptions := dayPackageOptions{inputsFolder: "day4"}
+	dayOptions := dayPackageOptions{inputsFolder: "day5"}
 	var task dayExecuter = &dayOptions
 	task.Execute()
 }
