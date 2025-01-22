@@ -9,6 +9,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 )
 
 type PageOrder struct {
@@ -123,7 +124,7 @@ func readInput(filename string) (PageOrder, ManualPages) {
 	return pageOrder, manualPages
 }
 
-func checkPagesOrder(index int, pageOrder *PageOrder, pages []int) bool {
+func checkPagesOrder(pageOrder *PageOrder, pages []int) bool {
 	for k, p := range pages {
 		for j := k; j != 0; j-- {
 			_, ok := slices.BinarySearch(pageOrder.data[p], pages[j-1])
@@ -136,14 +137,49 @@ func checkPagesOrder(index int, pageOrder *PageOrder, pages []int) bool {
 	return true
 }
 
+func checkPagesOrderGoroutine(wg *sync.WaitGroup, results chan int, pageOrder *PageOrder, pages []int) {
+	defer wg.Done()
+	ok := checkPagesOrder(pageOrder, pages)
+	if ok {
+		results <- pages[len(pages)/2]
+	}
+}
+
 func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) int {
 	var summ int = 0
-	for pindex, pages := range manualPages.data {
-		ok := checkPagesOrder(pindex, pageOrder, pages)
+	n := 0
+	for _, pages := range manualPages.data {
+		ok := checkPagesOrder(pageOrder, pages)
 		if ok {
 			summ += pages[len(pages)/2]
+			n++
 		}
 	}
+
+	fmt.Printf("%d ", n)
+
+	return summ
+}
+
+func calcAnswerParallel(pageOrder *PageOrder, manualPages *ManualPages) int {
+	results := make(chan int, len(manualPages.data))
+
+	wg := &sync.WaitGroup{}
+	wg.Add(len(manualPages.data))
+	for _, pages := range manualPages.data {
+		go checkPagesOrderGoroutine(wg, results, pageOrder, pages)
+	}
+
+	var summ int = 0
+	wg.Wait()
+
+	n := 0
+	for v := range <-results {
+		summ += v
+		n++
+	}
+
+	fmt.Printf("%d ", n)
 
 	return summ
 }
@@ -151,6 +187,9 @@ func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) int {
 func Execute() {
 	pageOrder, manualPages := readInput("input.txt")
 
-	summ := calcAnswer(&pageOrder, &manualPages)
-	fmt.Printf("%d", summ)
+	summ0 := calcAnswer(&pageOrder, &manualPages)
+	fmt.Printf("%d ", summ0)
+
+	summ := calcAnswerParallel(&pageOrder, &manualPages)
+	fmt.Printf("%d ", summ)
 }
