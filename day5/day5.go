@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 )
@@ -122,6 +123,34 @@ func readInput(filename string) (PageOrder, ManualPages) {
 	return pageOrder, manualPages
 }
 
+func checkPagesOrder(index int, pageOrder *PageOrder, pages []int) bool {
+	for k, p := range pages {
+		for j := k; j != 0; j-- {
+			_, ok := slices.BinarySearch(pageOrder.data[p], pages[j-1])
+			if !ok {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) int {
+	var summ int = 0
+	for pindex, pages := range manualPages.data {
+		ok := checkPagesOrder(pindex, pageOrder, pages)
+		if ok {
+			summ += pages[len(pages)/2]
+		}
+	}
+
+	return summ
+}
+
 func Execute() {
-	readInput("input.txt")
+	pageOrder, manualPages := readInput("input.txt")
+
+	summ := calcAnswer(&pageOrder, &manualPages)
+	fmt.Printf("%d", summ)
 }
