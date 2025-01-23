@@ -10,6 +10,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
+
+	myutils "strelox.com/ac2024/utils"
 )
 
 type PageOrder struct {
@@ -146,6 +149,7 @@ func checkPagesOrderGoroutine(wg *sync.WaitGroup, results chan int, pageOrder *P
 }
 
 func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) int {
+	defer myutils.TimeTrack(time.Now(), "calcAnswer")
 	var summ int = 0
 	n := 0
 	for _, pages := range manualPages.data {
@@ -156,12 +160,11 @@ func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) int {
 		}
 	}
 
-	fmt.Printf("%d ", n)
-
 	return summ
 }
 
 func calcAnswerParallel(pageOrder *PageOrder, manualPages *ManualPages) int {
+	defer myutils.TimeTrack(time.Now(), "calcAnswerParallel")
 	results := make(chan int, len(manualPages.data))
 
 	wg := &sync.WaitGroup{}
@@ -173,13 +176,24 @@ func calcAnswerParallel(pageOrder *PageOrder, manualPages *ManualPages) int {
 	var summ int = 0
 	wg.Wait()
 
-	n := 0
-	for v := range <-results {
-		summ += v
-		n++
-	}
+	results <- -1
 
-	fmt.Printf("%d ", n)
+	isStopped := false
+	n := 0
+	for !isStopped {
+		select {
+		case x, ok := <-results:
+			if !ok {
+				continue
+			}
+			if x == -1 {
+				isStopped = true
+				break
+			}
+			summ += x
+			n++
+		}
+	}
 
 	return summ
 }
@@ -187,9 +201,9 @@ func calcAnswerParallel(pageOrder *PageOrder, manualPages *ManualPages) int {
 func Execute() {
 	pageOrder, manualPages := readInput("input.txt")
 
-	summ0 := calcAnswer(&pageOrder, &manualPages)
-	fmt.Printf("%d ", summ0)
+	//summ0 := calcAnswer(&pageOrder, &manualPages)
+	//fmt.Printf("ans1=%d\n", summ0)
 
 	summ := calcAnswerParallel(&pageOrder, &manualPages)
-	fmt.Printf("%d ", summ)
+	fmt.Printf("ans1p=%d\n", summ)
 }
