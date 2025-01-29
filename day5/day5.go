@@ -23,6 +23,25 @@ type ManualPages struct {
 	data [][]int
 }
 
+type IntSlicePair struct {
+	key    int
+	values []int
+}
+
+type BySliceSize []IntSlicePair
+
+func (b BySliceSize) Len() int {
+	return len(b)
+}
+
+func (b BySliceSize) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+
+func (b BySliceSize) Less(i, j int) bool {
+	return len(b[i].values) < len(b[j].values)
+}
+
 func readPageOrder(scanner *bufio.Scanner) (PageOrder, error) {
 	var result PageOrder
 
@@ -148,19 +167,22 @@ func checkPagesOrderGoroutine(wg *sync.WaitGroup, results chan int, pageOrder *P
 	}
 }
 
-func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) int {
+func calcAnswer(pageOrder *PageOrder, manualPages *ManualPages) (int, []int, []int) {
 	defer myutils.TimeTrack(time.Now(), "calcAnswer")
 	var summ int = 0
-	n := 0
-	for _, pages := range manualPages.data {
+	indexes := []int{}
+	wrongIndexes := []int{}
+	for i, pages := range manualPages.data {
 		ok := checkPagesOrder(pageOrder, pages)
 		if ok {
 			summ += pages[len(pages)/2]
-			n++
+			indexes = append(indexes, i)
+		} else {
+			wrongIndexes = append(wrongIndexes, i)
 		}
 	}
 
-	return summ
+	return summ, indexes, wrongIndexes
 }
 
 func calcAnswerParallel(pageOrder *PageOrder, manualPages *ManualPages) int {
@@ -198,12 +220,46 @@ func calcAnswerParallel(pageOrder *PageOrder, manualPages *ManualPages) int {
 	return summ
 }
 
+func fixFailedPages(index int, pageOrder *PageOrder, manualPages *ManualPages) []int {
+	pages := manualPages.data[index]
+	availableLess := make([]IntSlicePair, len(pages))
+	for i, v := range pages {
+		availableLess[i] = IntSlicePair{key: v, values: []int{}}
+		for j, u := range pages {
+			if i != j {
+				_, ok := slices.BinarySearch(pageOrder.data[v], u)
+				if ok {
+					availableLess[i].values = append(availableLess[i].values, u)
+				}
+			}
+		}
+	}
+
+	result := make([]int, len(availableLess))
+	sort.Sort(BySliceSize(availableLess))
+	for i, a := range availableLess {
+		result[i] = a.key
+	}
+
+	return result
+}
+
 func Execute() {
 	pageOrder, manualPages := readInput("input.txt")
 
-	//summ0 := calcAnswer(&pageOrder, &manualPages)
-	//fmt.Printf("ans1=%d\n", summ0)
+	summ0, _, wrongIndexes := calcAnswer(&pageOrder, &manualPages)
+	fmt.Printf("ans1=%d\n", summ0)
 
-	summ := calcAnswerParallel(&pageOrder, &manualPages)
-	fmt.Printf("ans1p=%d\n", summ)
+	summFixed := 0
+	for _, wi := range wrongIndexes {
+		fixedOrder := fixFailedPages(wi, &pageOrder, &manualPages)
+		summFixed += fixedOrder[len(fixedOrder)/2]
+		//fmt.Printf("index=%d %v\n", wi, fixedOrder)
+		//break
+	}
+
+	fmt.Printf("fixed summ = %d", summFixed)
+
+	//summ := calcAnswerParallel(&pageOrder, &manualPages)
+	//fmt.Printf("ans1p=%d\n", summ)
 }
