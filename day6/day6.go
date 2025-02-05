@@ -26,13 +26,7 @@ func grFindStart(s string, y int, output chan []int, status chan int) {
 		}
 	}
 
-	select {
-	case st := <-status:
-		utils.Unused(st)
-		return
-	default:
-		guardSeacher()
-	}
+	guardSeacher()
 }
 
 func readInput(filename string) ([][]byte, int, int) {
