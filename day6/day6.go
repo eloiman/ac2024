@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"log"
 	"os"
-
-	"strelox.com/ac2024/utils"
 )
 
 func grFindStart(s string, y int, output chan []int, status chan int) {
@@ -14,7 +12,7 @@ func grFindStart(s string, y int, output chan []int, status chan int) {
 		for x, ch := range s {
 			select {
 			case st := <-status:
-				utils.Unused(st)
+				status <- st
 				return
 			default:
 				if ch == '^' {
@@ -42,15 +40,15 @@ func readInput(filename string) ([][]byte, int, int) {
 	y := 0
 	result := [][]byte{}
 	scanner := bufio.NewScanner(file)
-	outchan := make(chan []int, 2)
-	status := make(chan int, 2)
+	outchan := make(chan []int, 1)
+	status := make(chan int, 0)
 	for scanner.Scan() {
 		s := scanner.Text()
 		if res == nil {
 			select {
 			case st := <-status:
-				utils.Unused(st)
 				res = <-outchan
+				status <- st
 			default:
 				go grFindStart(s, y, outchan, status)
 			}
