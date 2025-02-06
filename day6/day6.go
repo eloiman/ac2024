@@ -123,6 +123,6 @@ func Execute() {
 		}
 	}
 
-	outputPole(input)
+	//outputPole(input)
 	fmt.Printf("total=%d\n", total)
 }
