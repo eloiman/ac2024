@@ -68,8 +68,8 @@ func makeBoundsChecker(szx, szy int) func(x, y int) bool {
 
 const (
 	STATE_UP = iota
-	STATE_DOWN
 	STATE_RIGHT
+	STATE_DOWN
 	STATE_LEFT
 )
 
@@ -93,42 +93,30 @@ func Execute() {
 	input[yc][xc] = '.'
 
 	x, y := xc, yc
+	xp, yp := xc, yc-1
 	state := STATE_UP
 	total := 0
 	for !boundsChecker(x, y) {
-		ch := &input[y][x]
-		if *ch == '#' {
-			switch state {
-			case STATE_UP:
-				state = STATE_RIGHT
-				y++
-			case STATE_RIGHT:
-				state = STATE_DOWN
-				x--
-			case STATE_DOWN:
-				state = STATE_LEFT
-				y--
-			case STATE_LEFT:
-				x++
-				state = STATE_UP
-			default:
-				log.Fatal("Wrong flow")
-				os.Exit(1)
-			}
+		ch0 := input[y][x]
+		if ch0 == '#' {
+			state = (state + 1) % 4
+			x, y = xp, yp
 		}
+		ch := &input[y][x]
 		if *ch == '.' {
 			*ch = 'X'
 			total++
 		}
+		xp, yp = x, y
 		switch state {
 		case STATE_UP:
 			y--
-		case STATE_RIGHT:
-			x++
 		case STATE_DOWN:
 			y++
 		case STATE_LEFT:
 			x--
+		case STATE_RIGHT:
+			x++
 		default:
 			log.Fatal("Wrong flow")
 			os.Exit(1)
