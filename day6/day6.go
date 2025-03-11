@@ -5,19 +5,20 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sync"
 )
 
-func findStart(s string, y int, result chan []int) {
+func findStart(s string, y int, result chan []int, wg *sync.WaitGroup) {
+	wg.Add(1)
 	go func() {
+		defer wg.Done()
 		for x, ch := range s {
-			select {
-			case <-result:
+			if len(result) != 0 {
 				return
-			default:
-				if ch == '^' {
-					result <- []int{x, y}
-					return
-				}
+			}
+			if ch == '^' {
+				result <- []int{x, y}
+				return
 			}
 		}
 	}()
@@ -32,6 +33,8 @@ func readInput(filename string) ([][]byte, int, int) {
 
 	defer file.Close()
 
+	wg := &sync.WaitGroup{}
+
 	y := 0
 	result := [][]byte{}
 	scanner := bufio.NewScanner(file)
@@ -39,16 +42,19 @@ func readInput(filename string) ([][]byte, int, int) {
 	var start []int = nil
 	for scanner.Scan() {
 		s := scanner.Text()
-		if start == nil {
-			select {
-			case foundStart := <-startResult:
-				start = foundStart
-			default:
-				findStart(s, y, startResult)
-			}
+		if len(startResult) == 0 {
+			findStart(s, y, startResult, wg)
 		}
 		result = append(result, []byte(s))
 		y++
+	}
+
+	wg.Wait()
+
+	select {
+	case start = <-startResult:
+	default:
+		panic("start haven't been found")
 	}
 
 	return result, start[0], start[1]
@@ -161,5 +167,5 @@ func Execute() {
 	fmt.Printf("total=%d\n", total)
 
 	loopExists := isLoopExists(path)
-	fmt.Printf("total=%t\n", loopExists)
+	fmt.Printf("loop=%t\n", loopExists)
 }
