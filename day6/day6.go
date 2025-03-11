@@ -7,24 +7,20 @@ import (
 	"os"
 )
 
-func grFindStart(s string, y int, output chan []int, status chan int) {
-	guardSeacher := func() {
+func findStart(s string, y int, result chan []int) {
+	go func() {
 		for x, ch := range s {
 			select {
-			case st := <-status:
-				status <- st
+			case <-result:
 				return
 			default:
 				if ch == '^' {
-					output <- []int{x, y}
-					status <- '1'
+					result <- []int{x, y}
 					return
 				}
 			}
 		}
-	}
-
-	guardSeacher()
+	}()
 }
 
 func readInput(filename string) ([][]byte, int, int) {
@@ -36,28 +32,26 @@ func readInput(filename string) ([][]byte, int, int) {
 
 	defer file.Close()
 
-	var res []int = nil
 	y := 0
 	result := [][]byte{}
 	scanner := bufio.NewScanner(file)
-	outchan := make(chan []int, 1)
-	status := make(chan int, 0)
+	startResult := make(chan []int, 1)
+	var start []int = nil
 	for scanner.Scan() {
 		s := scanner.Text()
-		if res == nil {
+		if start == nil {
 			select {
-			case st := <-status:
-				res = <-outchan
-				status <- st
+			case foundStart := <-startResult:
+				start = foundStart
 			default:
-				go grFindStart(s, y, outchan, status)
+				findStart(s, y, startResult)
 			}
 		}
 		result = append(result, []byte(s))
 		y++
 	}
 
-	return result, res[0], res[1]
+	return result, start[0], start[1]
 }
 
 func makeBoundsChecker(szx, szy int) func(x, y int) bool {
@@ -73,6 +67,19 @@ const (
 	STATE_LEFT
 )
 
+type PathElement struct {
+	x, y int
+}
+
+type FullPathElement struct {
+	PathElement
+	state int
+}
+
+type Path struct {
+	elements []FullPathElement
+}
+
 func outputPole(pole [][]byte) {
 	file, _ := os.Create("output.txt")
 	writer := bufio.NewWriter(file)
@@ -84,18 +91,28 @@ func outputPole(pole [][]byte) {
 	defer file.Close()
 }
 
-func Execute() {
-	input, xc, yc := readInput("input.txt")
+func IsLoopExists(path Path) bool {
+	p1 := 0
+	p2 := 0
+	for p1 = 1; p1 < len(path.elements); p1++ {
+		if p1 == p2 {
+			return true
+		}
+		if p1&1 != 0 {
+			p2 += 1
+		}
+	}
 
-	boundsChecker := makeBoundsChecker(len(input[0]), len(input))
+	return false
+}
 
-	fmt.Printf("%dx%d %d %d\n", len(input[0]), len(input), xc, yc)
-	input[yc][xc] = '.'
-
+func getPath(xc int, yc int, input [][]byte, boundsChecker func(x, y int) bool) (int, Path) {
+	result := Path{}
+	total := 0
 	x, y := xc, yc
 	xp, yp := xc, yc-1
 	state := STATE_UP
-	total := 0
+	path := make(map[PathElement]bool)
 	for !boundsChecker(x, y) {
 		ch0 := input[y][x]
 		if ch0 == '#' {
@@ -104,8 +121,13 @@ func Execute() {
 		}
 		ch := &input[y][x]
 		if *ch == '.' {
-			*ch = 'X'
-			total++
+			pathElemenent := PathElement{x, y}
+			_, ok := path[pathElemenent]
+			if !ok {
+				total++
+			}
+			path[pathElemenent] = true
+			result.elements = append(result.elements, FullPathElement{PathElement{x, y}, state})
 		}
 		xp, yp = x, y
 		switch state {
@@ -123,6 +145,18 @@ func Execute() {
 		}
 	}
 
+	return total, result
+}
+
+func Execute() {
+	input, xc, yc := readInput("input.txt")
+
+	boundsChecker := makeBoundsChecker(len(input[0]), len(input))
+
+	fmt.Printf("%dx%d %d %d\n", len(input[0]), len(input), xc, yc)
+	input[yc][xc] = '.'
+
 	//outputPole(input)
+	total, _ := getPath(xc, yc, input, boundsChecker)
 	fmt.Printf("total=%d\n", total)
 }
