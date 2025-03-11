@@ -91,7 +91,7 @@ func outputPole(pole [][]byte) {
 	defer file.Close()
 }
 
-func IsLoopExists(path Path) bool {
+func isLoopExists(path Path) bool {
 	p1 := 0
 	p2 := 0
 	for p1 = 1; p1 < len(path.elements); p1++ {
@@ -157,6 +157,9 @@ func Execute() {
 	input[yc][xc] = '.'
 
 	//outputPole(input)
-	total, _ := getPath(xc, yc, input, boundsChecker)
+	total, path := getPath(xc, yc, input, boundsChecker)
 	fmt.Printf("total=%d\n", total)
+
+	loopExists := isLoopExists(path)
+	fmt.Printf("total=%t\n", loopExists)
 }
