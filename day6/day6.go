@@ -80,6 +80,7 @@ type PathElement struct {
 type FullPathElement struct {
 	PathElement
 	state int
+	order int
 }
 
 type Path struct {
@@ -97,61 +98,76 @@ func outputPole(pole [][]byte) {
 	defer file.Close()
 }
 
-func isLoopExists(path Path) bool {
-	p1 := 0
-	p2 := 0
-	for p1 = 1; p1 < len(path.elements); p1++ {
-		if p1 == p2 {
-			return true
-		}
-		if p1&1 != 0 {
-			p2 += 1
-		}
-	}
-
-	return false
+type TotalCalc struct {
+	total    int
+	path     Path
+	pathMemo map[PathElement]bool
+	input    [][]byte
 }
 
-func getPath(xc int, yc int, input [][]byte, boundsChecker func(x, y int) bool) (int, Path) {
-	result := Path{}
-	total := 0
-	x, y := xc, yc
-	xp, yp := xc, yc-1
-	state := STATE_UP
-	path := make(map[PathElement]bool)
-	for !boundsChecker(x, y) {
-		ch0 := input[y][x]
-		if ch0 == '#' {
-			state = (state + 1) % 4
-			x, y = xp, yp
-		}
-		ch := &input[y][x]
-		if *ch == '.' {
-			pathElemenent := PathElement{x, y}
-			_, ok := path[pathElemenent]
-			if !ok {
-				total++
+type LoopDetector struct {
+	isLoopDetected bool
+	pathSoFar      Path
+	input          [][]byte
+}
+
+type FieldActions interface {
+	Init()
+	GetInput() [][]byte
+	ActSpace(x, y, status int)
+}
+
+func (tc *TotalCalc) Init() {
+	tc.pathMemo = map[PathElement]bool{}
+	tc.total = 0
+}
+
+func (tc *TotalCalc) GetInput() [][]byte {
+	return tc.input
+}
+
+func (tc *TotalCalc) ActSpace(x, y, state int) {
+	pathElemenent := PathElement{x, y}
+	_, ok := tc.pathMemo[pathElemenent]
+	if !ok {
+		tc.total++
+	}
+	tc.pathMemo[pathElemenent] = true
+	tc.path.elements = append(tc.path.elements, FullPathElement{PathElement{x, y}, state, len(tc.path.elements) + 1})
+}
+
+func makeTrackPathFunc(xc int, yc int, boundsChecker func(x, y int) bool) func(fa FieldActions) {
+	return func(fa FieldActions) {
+		input := fa.GetInput()
+		x, y := xc, yc
+		xp, yp := xc, yc-1
+		state := STATE_UP
+		for !boundsChecker(x, y) {
+			ch0 := input[y][x]
+			if ch0 == '#' {
+				state = (state + 1) % 4
+				x, y = xp, yp
 			}
-			path[pathElemenent] = true
-			result.elements = append(result.elements, FullPathElement{PathElement{x, y}, state})
-		}
-		xp, yp = x, y
-		switch state {
-		case STATE_UP:
-			y--
-		case STATE_DOWN:
-			y++
-		case STATE_LEFT:
-			x--
-		case STATE_RIGHT:
-			x++
-		default:
-			log.Fatal("Wrong flow")
-			os.Exit(1)
+			ch := &input[y][x]
+			if *ch == '.' {
+				fa.ActSpace(x, y, state)
+			}
+			xp, yp = x, y
+			switch state {
+			case STATE_UP:
+				y--
+			case STATE_DOWN:
+				y++
+			case STATE_LEFT:
+				x--
+			case STATE_RIGHT:
+				x++
+			default:
+				log.Fatal("Wrong flow")
+				os.Exit(1)
+			}
 		}
 	}
-
-	return total, result
 }
 
 func Execute() {
@@ -162,10 +178,9 @@ func Execute() {
 	fmt.Printf("%dx%d %d %d\n", len(input[0]), len(input), xc, yc)
 	input[yc][xc] = '.'
 
-	//outputPole(input)
-	total, path := getPath(xc, yc, input, boundsChecker)
-	fmt.Printf("total=%d\n", total)
-
-	loopExists := isLoopExists(path)
-	fmt.Printf("loop=%t\n", loopExists)
+	trackPathFunc := makeTrackPathFunc(xc, yc, boundsChecker)
+	totalCalc := TotalCalc{input: input}
+	totalCalc.Init()
+	trackPathFunc(&totalCalc)
+	fmt.Printf("total=%d\n", totalCalc.total)
 }
