@@ -5,7 +5,12 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime"
 	"sync"
+	"time"
+
+	"strelox.com/ac2024/utils"
+	myutils "strelox.com/ac2024/utils"
 )
 
 func findStart(s string, y int, result chan []int, wg *sync.WaitGroup) {
@@ -236,6 +241,40 @@ func tryMakeLoops(input [][]byte, path Path, trackPathFunc func(fa FieldActions)
 	return totalLoops
 }
 
+func tryMakeLoopsSem(input [][]byte, path Path, trackPathFunc func(fa FieldActions)) int {
+	fmt.Printf("runtime.NumCPU()=%d\n", runtime.NumCPU())
+	sem := utils.NewSemaphore(runtime.NumCPU() * 4) // 4 gives very good result somehow
+	totalLoops := 0
+	result := make(chan bool, len(path.elements))
+	wg := &sync.WaitGroup{}
+	for _, pe := range path.elements {
+		wg.Add(1)
+		sem.Acquire()
+		go func(pe PathElement, input [][]byte, result chan bool, sem *myutils.Semaphore, wg *sync.WaitGroup) {
+			defer wg.Done()
+			newInput := copyInput(input)
+			newInput[pe.y][pe.x] = '#'
+			loopDetector := NewLoopDetector(newInput)
+			trackPathFunc(loopDetector)
+			result <- loopDetector.isLoopDetected
+			sem.Release()
+		}(pe, input, result, sem, wg)
+	}
+
+	wg.Wait()
+	close(result)
+
+	for isLoopDetected := range result {
+		if isLoopDetected {
+			totalLoops++
+		}
+	}
+
+	sem.Close()
+
+	return totalLoops
+}
+
 func Execute() {
 	input, xc, yc := readInput("input.txt")
 
@@ -249,6 +288,13 @@ func Execute() {
 	trackPathFunc(totalCalc)
 	fmt.Printf("total=%d\n", totalCalc.total)
 
+	timeStart := time.Now()
 	totalLoops := tryMakeLoops(input, totalCalc.path, trackPathFunc)
-	fmt.Printf("totalLoops=%d\n", totalLoops)
+	myutils.TimeTrack(timeStart, "tryMakeLoops")
+	fmt.Printf("1 totalLoops=%d\n", totalLoops)
+
+	timeStart2 := time.Now()
+	totalLoops2 := tryMakeLoopsSem(input, totalCalc.path, trackPathFunc)
+	myutils.TimeTrack(timeStart2, "tryMakeLoopsSem")
+	fmt.Printf("2 totalLoops=%d\n", totalLoops2)
 }
