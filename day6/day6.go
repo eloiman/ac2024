@@ -80,11 +80,14 @@ type PathElement struct {
 type FullPathElement struct {
 	PathElement
 	state int
-	order int
+}
+
+type FullPath struct {
+	elements []FullPathElement
 }
 
 type Path struct {
-	elements []FullPathElement
+	elements []PathElement
 }
 
 func outputPole(pole [][]byte) {
@@ -98,42 +101,75 @@ func outputPole(pole [][]byte) {
 	defer file.Close()
 }
 
+type TrackerInput struct {
+	input [][]byte
+}
+
 type TotalCalc struct {
+	TrackerInput
 	total    int
 	path     Path
 	pathMemo map[PathElement]bool
-	input    [][]byte
 }
 
 type LoopDetector struct {
+	TrackerInput
 	isLoopDetected bool
-	pathSoFar      Path
-	input          [][]byte
+	pathMemo       map[FullPathElement]int
+	order          int
 }
 
 type FieldActions interface {
-	Init()
 	GetInput() [][]byte
-	ActSpace(x, y, status int)
+	ActSpace(x, y, status int) bool
 }
 
-func (tc *TotalCalc) Init() {
-	tc.pathMemo = map[PathElement]bool{}
-	tc.total = 0
+func NewTotalCalc(input [][]byte) *TotalCalc {
+	tc := &TotalCalc{
+		TrackerInput: TrackerInput{input: input},
+		total:        0,
+		pathMemo:     map[PathElement]bool{}}
+	return tc
 }
 
-func (tc *TotalCalc) GetInput() [][]byte {
-	return tc.input
+func NewLoopDetector(input [][]byte) *LoopDetector {
+	ld := &LoopDetector{
+		isLoopDetected: false,
+		pathMemo:       map[FullPathElement]int{},
+		TrackerInput:   TrackerInput{input: input},
+		order:          0}
+
+	return ld
 }
 
-func (tc *TotalCalc) ActSpace(x, y, state int) {
+func (ti *TrackerInput) GetInput() [][]byte {
+	return ti.input
+}
+
+func (tc *TotalCalc) ActSpace(x, y, state int) bool {
 	pathElemenent := PathElement{x, y}
 	_, ok := tc.pathMemo[pathElemenent]
 	if !ok {
 		tc.total++
+		tc.pathMemo[pathElemenent] = true
+		tc.path.elements = append(tc.path.elements, PathElement{x, y})
 	}
-	tc.pathMemo[pathElemenent] = true
-	tc.path.elements = append(tc.path.elements, FullPathElement{PathElement{x, y}, state, len(tc.path.elements) + 1})
+
+	return false
+}
+
+func (ld *LoopDetector) ActSpace(x, y, state int) bool {
+	pathElement := FullPathElement{PathElement{x, y}, state}
+	_, ok := ld.pathMemo[pathElement]
+	if !ok {
+		ld.pathMemo[pathElement] = ld.order
+		ld.order++
+		return false
+	}
+
+	ld.isLoopDetected = true
+
+	return true
 }
 
 func makeTrackPathFunc(xc int, yc int, boundsChecker func(x, y int) bool) func(fa FieldActions) {
@@ -150,7 +186,10 @@ func makeTrackPathFunc(xc int, yc int, boundsChecker func(x, y int) bool) func(f
 			}
 			ch := &input[y][x]
 			if *ch == '.' {
-				fa.ActSpace(x, y, state)
+				shouldStopTracking := fa.ActSpace(x, y, state)
+				if shouldStopTracking {
+					break
+				}
 			}
 			xp, yp = x, y
 			switch state {
@@ -179,8 +218,11 @@ func Execute() {
 	input[yc][xc] = '.'
 
 	trackPathFunc := makeTrackPathFunc(xc, yc, boundsChecker)
-	totalCalc := TotalCalc{input: input}
-	totalCalc.Init()
-	trackPathFunc(&totalCalc)
+	totalCalc := NewTotalCalc(input)
+	trackPathFunc(totalCalc)
 	fmt.Printf("total=%d\n", totalCalc.total)
+
+	loopDetector := NewLoopDetector(input)
+	trackPathFunc(loopDetector)
+	fmt.Printf("isLoopDetected=%t\n", loopDetector.isLoopDetected)
 }
