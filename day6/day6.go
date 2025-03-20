@@ -179,18 +179,20 @@ func makeTrackPathFunc(xc int, yc int, boundsChecker func(x, y int) bool) func(f
 		xp, yp := xc, yc-1
 		state := STATE_UP
 		for !boundsChecker(x, y) {
-			ch0 := input[y][x]
-			if ch0 == '#' {
+			ch := input[y][x]
+
+			if ch == '#' {
 				state = (state + 1) % 4
 				x, y = xp, yp
 			}
-			ch := &input[y][x]
-			if *ch == '.' {
+
+			if ch == '.' {
 				shouldStopTracking := fa.ActSpace(x, y, state)
 				if shouldStopTracking {
 					break
 				}
 			}
+
 			xp, yp = x, y
 			switch state {
 			case STATE_UP:
@@ -209,6 +211,31 @@ func makeTrackPathFunc(xc int, yc int, boundsChecker func(x, y int) bool) func(f
 	}
 }
 
+func copyInput(input [][]byte) [][]byte {
+	newInput := make([][]byte, len(input))
+	for i := range input {
+		newInput[i] = make([]byte, len(input[0]))
+		copy(newInput[i], input[i])
+	}
+
+	return newInput
+}
+
+func tryMakeLoops(input [][]byte, path Path, trackPathFunc func(fa FieldActions)) int {
+	totalLoops := 0
+	for _, pe := range path.elements {
+		newInput := copyInput(input)
+		newInput[pe.y][pe.x] = '#'
+		loopDetector := NewLoopDetector(newInput)
+		trackPathFunc(loopDetector)
+		if loopDetector.isLoopDetected {
+			totalLoops++
+		}
+	}
+
+	return totalLoops
+}
+
 func Execute() {
 	input, xc, yc := readInput("input.txt")
 
@@ -222,7 +249,6 @@ func Execute() {
 	trackPathFunc(totalCalc)
 	fmt.Printf("total=%d\n", totalCalc.total)
 
-	loopDetector := NewLoopDetector(input)
-	trackPathFunc(loopDetector)
-	fmt.Printf("isLoopDetected=%t\n", loopDetector.isLoopDetected)
+	totalLoops := tryMakeLoops(input, totalCalc.path, trackPathFunc)
+	fmt.Printf("totalLoops=%d\n", totalLoops)
 }
