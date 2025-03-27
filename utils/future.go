@@ -92,7 +92,7 @@ func (future *Future[T]) GetOr(defaultValue T) T {
 	return future.state.read()
 }
 
-func (future *Future[T]) GetResult() Result[T] {
+func (future *Future[T]) Result() Result[T] {
 	future.state.Lock()
 	defer future.state.Unlock()
 
@@ -107,7 +107,18 @@ func (future *Future[T]) GetResult() Result[T] {
 	return Result[T]{result: future.state.read(), err: nil}
 }
 
-func (future *Future[T]) isOpen() bool {
+func (future *Future[T]) WaitResult() Result[T] {
+	future.state.Lock()
+	defer future.state.Unlock()
+
+	if !future.state.isOpen {
+		return Result[T]{err: errors.New("state is closed")}
+	}
+
+	return Result[T]{result: future.state.read(), err: nil}
+}
+
+func (future *Future[T]) IsOpen() bool {
 	future.state.Lock()
 	defer future.state.Unlock()
 
