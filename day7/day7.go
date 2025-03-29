@@ -97,21 +97,26 @@ func testCalibration(eq equation, results chan uint64, sem *myutils.Semaphore) {
 	}
 }
 
-func resultsCollector(maxResults int, results <-chan uint64, resultsSumm chan uint64) {
-	var summ uint64 = 0
-	nresult := 0
-	for nresult < maxResults {
-		select {
-		case eval, ok := <-results:
-			if ok {
-				summ += eval
-				nresult++
-			}
-		default:
-		}
-	}
+func collectResults(maxResults int, results <-chan uint64) myutils.Promise[uint64] {
+	promise := myutils.NewPromise[uint64](1)
 
-	resultsSumm <- summ
+	go func(maxResults int, results <-chan uint64, promise *myutils.Promise[uint64]) {
+		var summ uint64 = 0
+		nresult := 0
+		for nresult < maxResults {
+			select {
+			case eval, ok := <-results:
+				if ok {
+					summ += eval
+					nresult++
+				}
+			default:
+			}
+		}
+		promise.Put(summ)
+	}(maxResults, results, &promise)
+
+	return promise
 }
 
 func testAllCalibration(eqs []equation) uint64 {
@@ -119,17 +124,17 @@ func testAllCalibration(eqs []equation) uint64 {
 
 	results := make(chan uint64, sem.Size()+1)
 	defer close(results)
-	resultsSumm := make(chan uint64, 1)
-	defer close(resultsSumm)
 
-	go resultsCollector(len(eqs), results, resultsSumm)
+	resultPromise := collectResults(len(eqs), results)
 
 	for _, eq := range eqs {
 		sem.Acquire()
 		go testCalibration(eq, results, sem)
 	}
 
-	summ := <-resultsSumm
+	resultFuture := resultPromise.Future()
+	defer resultFuture.Close()
+	summ := resultFuture.Get()
 
 	return summ
 }

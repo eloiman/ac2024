@@ -33,14 +33,17 @@ func NewPromise[T any](n uint32) Promise[T] {
 
 func (promise *Promise[T]) Put(value T) bool {
 	promise.state.Lock()
-	defer promise.state.Unlock()
 
 	if promise.state.resultsLeft == 0 {
-		log.Fatalln("promise has been already out of results to return")
+		promise.state.Unlock()
+		log.Println("promise has been already out of results to return")
 		return false
 	}
-	promise.state.result <- value
+
 	promise.state.resultsLeft--
+	promise.state.Unlock()
+
+	promise.state.result <- value
 
 	return true
 }
@@ -72,23 +75,25 @@ func (state *sharedState[T]) read() T {
 
 func (future *Future[T]) Get() T {
 	future.state.Lock()
-	defer future.state.Unlock()
 
 	if !future.state.isOpen {
+		future.state.Unlock()
 		panic("It's closed")
 	}
 
+	future.state.Unlock()
 	return future.state.read()
 }
 
 func (future *Future[T]) GetOr(defaultValue T) T {
 	future.state.Lock()
-	defer future.state.Unlock()
 
 	if !future.state.isOpen {
+		future.state.Unlock()
 		return defaultValue
 	}
 
+	future.state.Unlock()
 	return future.state.read()
 }
 
@@ -109,12 +114,13 @@ func (future *Future[T]) Result() Result[T] {
 
 func (future *Future[T]) WaitResult() Result[T] {
 	future.state.Lock()
-	defer future.state.Unlock()
 
 	if !future.state.isOpen {
+		future.state.Unlock()
 		return Result[T]{err: errors.New("state is closed")}
 	}
 
+	future.state.Unlock()
 	return Result[T]{result: future.state.read(), err: nil}
 }
 
